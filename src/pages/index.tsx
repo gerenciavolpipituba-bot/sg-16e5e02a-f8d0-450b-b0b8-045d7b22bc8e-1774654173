@@ -10,7 +10,8 @@ import {
   LayoutDashboard,
   Plus,
   ClipboardList,
-  MapPin
+  MapPin,
+  FileUp
 } from "lucide-react";
 import { Product, Movement } from "@/types";
 import { storage } from "@/lib/storage";
@@ -19,6 +20,7 @@ import { ProductsManager } from "@/components/ProductsManager";
 import { MovementsManager } from "@/components/MovementsManager";
 import { InventoryManager } from "@/components/InventoryManager";
 import { SectorsManager } from "@/components/SectorsManager";
+import { ImportManager } from "@/components/ImportManager";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -46,7 +48,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
+      <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -55,7 +57,7 @@ export default function Home() {
               </div>
               <div>
                 <h1 className="text-xl font-heading font-bold">Controle de Estoque</h1>
-                <p className="text-sm text-muted-foreground">Sistema de Gestão</p>
+                <p className="text-sm text-muted-foreground">Sistema de Gestão Restaurante</p>
               </div>
             </div>
             {lowStockCount > 0 && (
@@ -69,7 +71,7 @@ export default function Home() {
 
       <main className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 lg:w-auto lg:inline-grid">
             <TabsTrigger value="dashboard" className="gap-2">
               <LayoutDashboard className="h-4 w-4" />
               <span className="hidden sm:inline">Dashboard</span>
@@ -89,6 +91,10 @@ export default function Home() {
             <TabsTrigger value="sectors" className="gap-2">
               <MapPin className="h-4 w-4" />
               <span className="hidden sm:inline">Setores</span>
+            </TabsTrigger>
+            <TabsTrigger value="import" className="gap-2">
+              <FileUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Importar</span>
             </TabsTrigger>
           </TabsList>
 
@@ -110,6 +116,10 @@ export default function Home() {
 
           <TabsContent value="sectors" className="space-y-6">
             <SectorsManager onDataChange={handleDataChange} />
+          </TabsContent>
+
+          <TabsContent value="import" className="space-y-6">
+            <ImportManager onDataChange={handleDataChange} />
           </TabsContent>
         </Tabs>
       </main>
