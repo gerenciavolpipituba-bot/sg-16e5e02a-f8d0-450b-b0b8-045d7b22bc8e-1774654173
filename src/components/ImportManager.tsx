@@ -87,22 +87,26 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
 
     data.forEach((row, index) => {
       try {
+        // Normalizar nomes de colunas
         const rowData: Record<string, any> = {};
         Object.keys(row).forEach(key => {
           const normalizedKey = key.trim().toLowerCase().replace(/\s+/g, "_");
           rowData[normalizedKey] = row[key];
         });
 
+        // Extrair dados com múltiplas variações de nomes
         const nome = rowData.nome || rowData.nome_do_produto || rowData.produto;
         const categoria = rowData.categoria;
         const unidade = rowData.unidade || rowData.unidade_de_medida || rowData.un;
         const codigoInterno = rowData.codigo_interno || rowData.codigo || rowData.cod;
 
+        // Validar campos obrigatórios
         if (!nome || !categoria || !unidade) {
           errors.push(`Linha ${index + 2}: Campos obrigatórios faltando (nome, categoria, unidade)`);
           return;
         }
 
+        // Normalizar unidade
         const unitNormalized = String(unidade).toLowerCase().trim();
         let finalUnit: "kg" | "g" | "litro" | "ml" | "un" = "un";
 
@@ -121,6 +125,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
           return;
         }
 
+        // Verificar se produto já existe
         const existingProduct = codigoInterno 
           ? existingProducts.find(p => p.internalCode === String(codigoInterno).trim())
           : null;
@@ -202,6 +207,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
 
           processFileData(parsedData);
         } else {
+          // Processar Excel
           const workbook = XLSX.read(data, { type: "binary" });
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const jsonData = XLSX.utils.sheet_to_json(firstSheet);
@@ -223,6 +229,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
       reader.readAsBinaryString(file);
     }
     
+    // Limpar input para permitir re-upload do mesmo arquivo
     e.target.value = "";
   };
 

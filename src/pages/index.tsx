@@ -11,7 +11,8 @@ import {
   Plus,
   ClipboardList,
   MapPin,
-  FileUp
+  FileUp,
+  Trash2
 } from "lucide-react";
 import { Product, Movement } from "@/types";
 import { storage } from "@/lib/storage";
@@ -42,6 +43,14 @@ export default function Home() {
     loadData();
   };
 
+  const handleResetDatabase = () => {
+    if (window.confirm("⚠️ ATENÇÃO: Isso irá apagar TODOS os dados (produtos, movimentações, inventários e setores). Deseja continuar?")) {
+      storage.resetAll();
+      loadData();
+      alert("✅ Banco de dados resetado com sucesso! Agora você pode importar seus dados novamente.");
+    }
+  };
+
   if (!mounted) return null;
 
   const lowStockCount = products.filter(p => p.status === "active" && p.currentStock <= p.minStock).length;
@@ -60,11 +69,22 @@ export default function Home() {
                 <p className="text-sm text-muted-foreground">Sistema de Gestão Restaurante</p>
               </div>
             </div>
-            {lowStockCount > 0 && (
-              <Badge variant="destructive" className="text-sm">
-                {lowStockCount} {lowStockCount === 1 ? "produto" : "produtos"} abaixo do mínimo
-              </Badge>
-            )}
+            <div className="flex items-center gap-2">
+              {lowStockCount > 0 && (
+                <Badge variant="destructive" className="text-sm">
+                  {lowStockCount} {lowStockCount === 1 ? "produto" : "produtos"} abaixo do mínimo
+                </Badge>
+              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleResetDatabase}
+                className="gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Resetar DB</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>

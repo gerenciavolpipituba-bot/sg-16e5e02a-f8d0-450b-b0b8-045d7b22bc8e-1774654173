@@ -8,6 +8,15 @@ const STORAGE_KEYS = {
 };
 
 export const storage = {
+  // Reset all data
+  resetAll: (): void => {
+    if (typeof window === "undefined") return;
+    localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
+    localStorage.removeItem(STORAGE_KEYS.SECTORS);
+    localStorage.removeItem(STORAGE_KEYS.MOVEMENTS);
+    localStorage.removeItem(STORAGE_KEYS.INVENTORIES);
+  },
+
   // Products
   getProducts: (): Product[] => {
     if (typeof window === "undefined") return [];
