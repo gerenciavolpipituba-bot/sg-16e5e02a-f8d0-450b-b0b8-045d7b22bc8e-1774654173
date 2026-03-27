@@ -140,7 +140,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
           avgCost: parseFloat(rowData.custo_medio || rowData.custo || "0") || 0,
           internalCode: codigoInterno ? String(codigoInterno).trim() : `AUTO${Date.now()}${index}`,
           status: (String(rowData.status || "active").toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
-          sectors: existingProduct?.sectors || [],
+          sectors: existingProduct?.sectors || ["estoque_geral_default"],
           createdAt: existingProduct?.createdAt || new Date().toISOString(),
         };
 

@@ -7,6 +7,27 @@ const STORAGE_KEYS = {
   INVENTORIES: "estoque_inventories",
 };
 
+const ESTOQUE_GERAL_ID = "estoque_geral_default";
+
+// Garantir que o setor Estoque Geral existe
+const ensureEstoqueGeral = (): void => {
+  if (typeof window === "undefined") return;
+  
+  const sectors = storage.getSectors();
+  const estoqueGeralExists = sectors.some(s => s.id === ESTOQUE_GERAL_ID);
+  
+  if (!estoqueGeralExists) {
+    const estoqueGeral: Sector = {
+      id: ESTOQUE_GERAL_ID,
+      name: "Estoque Geral",
+      description: "Estoque geral do restaurante (setor padrão)",
+      createdAt: new Date().toISOString(),
+    };
+    sectors.unshift(estoqueGeral);
+    storage.saveSectors(sectors);
+  }
+};
+
 export const storage = {
   // Reset all data
   resetAll: (): void => {
@@ -15,40 +36,15 @@ export const storage = {
     localStorage.removeItem(STORAGE_KEYS.SECTORS);
     localStorage.removeItem(STORAGE_KEYS.MOVEMENTS);
     localStorage.removeItem(STORAGE_KEYS.INVENTORIES);
+    ensureEstoqueGeral();
   },
 
-  // Products
-  getProducts: (): Product[] => {
-    if (typeof window === "undefined") return [];
-    const data = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    return data ? JSON.parse(data) : [];
-  },
-  
-  saveProducts: (products: Product[]): void => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
-  },
-  
-  addProduct: (product: Product): void => {
-    const products = storage.getProducts();
-    products.push(product);
-    storage.saveProducts(products);
-  },
-  
-  updateProduct: (id: string, updates: Partial<Product>): void => {
-    const products = storage.getProducts();
-    const index = products.findIndex(p => p.id === id);
-    if (index !== -1) {
-      products[index] = { ...products[index], ...updates };
-      storage.saveProducts(products);
-    }
-  },
-  
   // Sectors
   getSectors: (): Sector[] => {
     if (typeof window === "undefined") return [];
     const data = localStorage.getItem(STORAGE_KEYS.SECTORS);
-    return data ? JSON.parse(data) : [];
+    const sectors = data ? JSON.parse(data) : [];
+    return sectors;
   },
   
   saveSectors: (sectors: Sector[]): void => {
@@ -60,6 +56,74 @@ export const storage = {
     const sectors = storage.getSectors();
     sectors.push(sector);
     storage.saveSectors(sectors);
+  },
+
+  // Products
+  getProducts: (): Product[] => {
+    if (typeof window === "undefined") return [];
+    ensureEstoqueGeral();
+    const data = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+    return data ? JSON.parse(data) : [];
+  },
+  
+  saveProducts: (products: Product[]): void => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+  },
+  
+  addProduct: (product: Product): void => {
+    ensureEstoqueGeral();
+    const products = storage.getProducts();
+    
+    // Garantir que o produto está vinculado ao Estoque Geral
+    if (!product.sectors || !product.sectors.includes(ESTOQUE_GERAL_ID)) {
+      product.sectors = product.sectors || [];
+      if (!product.sectors.includes(ESTOQUE_GERAL_ID)) {
+        product.sectors.unshift(ESTOQUE_GERAL_ID);
+      }
+    }
+    
+    products.push(product);
+    storage.saveProducts(products);
+  },
+  
+  updateProduct: (id: string, updates: Partial<Product>): void => {
+    ensureEstoqueGeral();
+    const products = storage.getProducts();
+    const index = products.findIndex(p => p.id === id);
+    if (index !== -1) {
+      const updatedProduct = { ...products[index], ...updates };
+      
+      // Garantir que o produto continua vinculado ao Estoque Geral
+      if (!updatedProduct.sectors || !updatedProduct.sectors.includes(ESTOQUE_GERAL_ID)) {
+        updatedProduct.sectors = updatedProduct.sectors || [];
+        if (!updatedProduct.sectors.includes(ESTOQUE_GERAL_ID)) {
+          updatedProduct.sectors.unshift(ESTOQUE_GERAL_ID);
+        }
+      }
+      
+      products[index] = updatedProduct;
+      storage.saveProducts(products);
+    }
+  },
+
+  // Atualizar produtos de uma categoria inteira para adicionar setores
+  updateCategorySectors: (category: string, sectorIds: string[]): void => {
+    ensureEstoqueGeral();
+    const products = storage.getProducts();
+    const updatedProducts = products.map(product => {
+      if (product.category === category) {
+        const currentSectors = product.sectors || [];
+        const newSectors = Array.from(new Set([...currentSectors, ...sectorIds]));
+        // Garantir Estoque Geral sempre presente
+        if (!newSectors.includes(ESTOQUE_GERAL_ID)) {
+          newSectors.unshift(ESTOQUE_GERAL_ID);
+        }
+        return { ...product, sectors: newSectors };
+      }
+      return product;
+    });
+    storage.saveProducts(updatedProducts);
   },
   
   // Movements
@@ -107,3 +171,8 @@ export const storage = {
     }
   },
 };
+
+// Inicializar Estoque Geral na primeira carga
+if (typeof window !== "undefined") {
+  ensureEstoqueGeral();
+}
