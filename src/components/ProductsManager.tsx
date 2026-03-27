@@ -27,6 +27,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
   const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [categorySectors, setCategorySectors] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -92,21 +93,57 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
     );
   };
 
+  const handleProductToggle = (productId: string) => {
+    setSelectedProducts(prev => 
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAllProducts = () => {
+    const categoryProducts = products.filter(p => p.category === selectedCategory);
+    if (selectedProducts.length === categoryProducts.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(categoryProducts.map(p => p.id));
+    }
+  };
+
   const handleCategoryBulkUpdate = () => {
-    if (!selectedCategory || categorySectors.length === 0) {
-      alert("Selecione uma categoria e pelo menos um setor");
+    if (!selectedCategory) {
+      alert("Selecione uma categoria");
       return;
     }
 
-    storage.updateCategorySectors(selectedCategory, categorySectors);
+    if (selectedProducts.length === 0) {
+      alert("Selecione pelo menos um produto");
+      return;
+    }
+
+    if (categorySectors.length === 0) {
+      alert("Selecione pelo menos um setor");
+      return;
+    }
+
+    // Atualizar apenas os produtos selecionados
+    selectedProducts.forEach(productId => {
+      const product = products.find(p => p.id === productId);
+      if (product) {
+        const currentSectors = product.sectors || [];
+        const newSectors = Array.from(new Set([...currentSectors, ...categorySectors]));
+        storage.updateProduct(productId, { sectors: newSectors });
+      }
+    });
     
     setIsCategoryDialogOpen(false);
     setSelectedCategory("");
     setCategorySectors([]);
+    setSelectedProducts([]);
     loadData();
     onDataChange();
     
-    alert(`Categoria "${selectedCategory}" atualizada! Todos os produtos desta categoria agora aparecem nos setores selecionados.`);
+    alert(`${selectedProducts.length} produto(s) da categoria "${selectedCategory}" atualizado(s)! Os setores selecionados foram adicionados.`);
   };
 
   const categories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
@@ -117,6 +154,10 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
     const matchesCategory = filterCategory === "all" || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const categoryProducts = selectedCategory 
+    ? products.filter(p => p.category === selectedCategory)
+    : [];
 
   if (!mounted) return null;
 
@@ -152,6 +193,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
             if (!open) {
               setSelectedCategory("");
               setCategorySectors([]);
+              setSelectedProducts([]);
             }
           }}>
             <DialogTrigger asChild>
@@ -160,14 +202,17 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                 Vincular Categoria
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Vincular Categoria a Setores</DialogTitle>
+                <DialogTitle>Vincular Produtos a Setores</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Selecione a Categoria</Label>
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <Label>1. Selecione a Categoria</Label>
+                  <Select value={selectedCategory} onValueChange={(value) => {
+                    setSelectedCategory(value);
+                    setSelectedProducts([]);
+                  }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Escolha uma categoria" />
                     </SelectTrigger>
@@ -179,36 +224,111 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Marque os setores onde esta categoria deve aparecer</Label>
-                  <div className="border rounded-lg p-4 space-y-2 max-h-64 overflow-y-auto">
-                    {sectors.map(sector => (
-                      <div key={sector.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`cat-sector-${sector.id}`}
-                          checked={categorySectors.includes(sector.id)}
-                          onCheckedChange={() => handleCategorySectorToggle(sector.id)}
-                        />
-                        <Label
-                          htmlFor={`cat-sector-${sector.id}`}
-                          className="text-sm font-normal cursor-pointer"
+                {selectedCategory && categoryProducts.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label>2. Selecione os Produtos (opcional - marque todos ou alguns)</Label>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleSelectAllProducts}
                         >
-                          {sector.name}
-                        </Label>
+                          {selectedProducts.length === categoryProducts.length ? "Desmarcar Todos" : "Marcar Todos"}
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Os setores selecionados serão ADICIONADOS aos setores já existentes de cada produto
-                  </p>
-                </div>
+                      <div className="border rounded-lg max-h-64 overflow-y-auto">
+                        <Table>
+                          <TableHeader className="sticky top-0 bg-background">
+                            <TableRow>
+                              <TableHead className="w-12"></TableHead>
+                              <TableHead>Produto</TableHead>
+                              <TableHead>Código</TableHead>
+                              <TableHead>Setores Atuais</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {categoryProducts.map(product => (
+                              <TableRow key={product.id}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedProducts.includes(product.id)}
+                                    onCheckedChange={() => handleProductToggle(product.id)}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium">{product.name}</TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{product.internalCode}</TableCell>
+                                <TableCell>
+                                  <div className="flex flex-wrap gap-1">
+                                    {product.sectors && product.sectors.length > 0 ? (
+                                      product.sectors.slice(0, 2).map(sectorId => {
+                                        const sector = sectors.find(s => s.id === sectorId);
+                                        return sector ? (
+                                          <Badge key={sectorId} variant="secondary" className="text-xs">
+                                            {sector.name}
+                                          </Badge>
+                                        ) : null;
+                                      })
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">Nenhum</span>
+                                    )}
+                                    {product.sectors && product.sectors.length > 2 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        +{product.sectors.length - 2}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedProducts.length} de {categoryProducts.length} produtos selecionados
+                      </p>
+                    </div>
 
-                <div className="flex justify-end gap-2 pt-4">
+                    <div className="space-y-2">
+                      <Label>3. Marque os setores onde os produtos selecionados devem aparecer</Label>
+                      <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+                        {sectors.map(sector => (
+                          <div key={sector.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`cat-sector-${sector.id}`}
+                              checked={categorySectors.includes(sector.id)}
+                              onCheckedChange={() => handleCategorySectorToggle(sector.id)}
+                              disabled={sector.id === "estoque_geral_default"}
+                            />
+                            <Label
+                              htmlFor={`cat-sector-${sector.id}`}
+                              className={`text-sm font-normal cursor-pointer ${sector.id === "estoque_geral_default" ? "font-semibold" : ""}`}
+                            >
+                              {sector.name}
+                              {sector.id === "estoque_geral_default" && (
+                                <Badge variant="secondary" className="ml-2 text-xs">Já vinculado</Badge>
+                              )}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Os setores selecionados serão ADICIONADOS aos setores já existentes de cada produto
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                <div className="flex justify-end gap-2 pt-4 border-t">
                   <Button type="button" variant="outline" onClick={() => setIsCategoryDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleCategoryBulkUpdate}>
-                    Aplicar a Todos os Produtos
+                  <Button 
+                    onClick={handleCategoryBulkUpdate}
+                    disabled={!selectedCategory || selectedProducts.length === 0 || categorySectors.length === 0}
+                  >
+                    Aplicar aos {selectedProducts.length} Produto(s) Selecionado(s)
                   </Button>
                 </div>
               </div>
