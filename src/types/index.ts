@@ -8,6 +8,7 @@ export interface Product {
   avgCost: number;
   internalCode: string;
   status: "active" | "inactive";
+  sectors: string[]; // IDs dos setores onde o produto está presente
   createdAt: string;
 }
 
@@ -31,6 +32,15 @@ export interface Movement {
   createdAt: string;
 }
 
+export interface SectorCount {
+  sectorId: string;
+  sectorName: string;
+  items: InventoryItem[];
+  photoUrl?: string;
+  countedBy?: string;
+  countedAt?: string;
+}
+
 export interface InventoryItem {
   productId: string;
   productName: string;
@@ -42,11 +52,27 @@ export interface InventoryItem {
 
 export interface Inventory {
   id: string;
-  sectorId: string;
-  sectorName: string;
-  items: InventoryItem[];
+  name: string;
+  sectorCounts: SectorCount[];
   status: "draft" | "completed";
   createdBy: string;
   createdAt: string;
   completedAt?: string;
+  consolidatedItems?: ConsolidatedItem[];
+}
+
+export interface ConsolidatedItem {
+  productId: string;
+  productName: string;
+  unit: string;
+  totalSystemStock: number;
+  totalPhysicalCount: number;
+  totalDifference: number;
+  sectorBreakdown: {
+    sectorId: string;
+    sectorName: string;
+    systemStock: number;
+    physicalCount: number;
+    difference: number;
+  }[];
 }

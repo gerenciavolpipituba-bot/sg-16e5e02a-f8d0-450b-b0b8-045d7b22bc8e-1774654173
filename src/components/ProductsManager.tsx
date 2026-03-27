@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, Edit, Package } from "lucide-react";
-import { Product } from "@/types";
+import { Product, Sector } from "@/types";
 import { storage } from "@/lib/storage";
 
 interface ProductsManagerProps {
@@ -17,19 +18,22 @@ interface ProductsManagerProps {
 
 export function ProductsManager({ onDataChange }: ProductsManagerProps) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [sectors, setSectors] = useState<Sector[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [selectedSectors, setSelectedSectors] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    loadProducts();
+    loadData();
   }, []);
 
-  const loadProducts = () => {
+  const loadData = () => {
     setProducts(storage.getProducts());
+    setSectors(storage.getSectors());
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -46,6 +50,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
       avgCost: Number(formData.get("avgCost")),
       internalCode: formData.get("internalCode") as string,
       status: formData.get("status") as "active" | "inactive",
+      sectors: selectedSectors,
       createdAt: editingProduct?.createdAt || new Date().toISOString(),
     };
 
@@ -57,13 +62,23 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
 
     setIsDialogOpen(false);
     setEditingProduct(null);
-    loadProducts();
+    setSelectedSectors([]);
+    loadData();
     onDataChange();
   };
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
+    setSelectedSectors(product.sectors || []);
     setIsDialogOpen(true);
+  };
+
+  const handleSectorToggle = (sectorId: string) => {
+    setSelectedSectors(prev => 
+      prev.includes(sectorId) 
+        ? prev.filter(id => id !== sectorId)
+        : [...prev, sectorId]
+    );
   };
 
   const categories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
@@ -105,7 +120,10 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
           </Select>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
-            if (!open) setEditingProduct(null);
+            if (!open) {
+              setEditingProduct(null);
+              setSelectedSectors([]);
+            }
           }}>
             <DialogTrigger asChild>
               <Button>
@@ -171,6 +189,32 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Setores onde o produto está presente</Label>
+                  <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
+                    {sectors.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum setor cadastrado</p>
+                    ) : (
+                      sectors.map(sector => (
+                        <div key={sector.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`sector-${sector.id}`}
+                            checked={selectedSectors.includes(sector.id)}
+                            onCheckedChange={() => handleSectorToggle(sector.id)}
+                          />
+                          <Label
+                            htmlFor={`sector-${sector.id}`}
+                            className="text-sm font-normal cursor-pointer"
+                          >
+                            {sector.name}
+                          </Label>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
@@ -193,6 +237,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                 <TableRow>
                   <TableHead>Produto</TableHead>
                   <TableHead>Categoria</TableHead>
+                  <TableHead>Setores</TableHead>
                   <TableHead className="text-right">Estoque</TableHead>
                   <TableHead className="text-right">Mínimo</TableHead>
                   <TableHead className="text-right">Custo</TableHead>
@@ -203,7 +248,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
               <TableBody>
                 {filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       Nenhum produto encontrado
                     </TableCell>
@@ -218,6 +263,27 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                         </div>
                       </TableCell>
                       <TableCell>{product.category}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {product.sectors && product.sectors.length > 0 ? (
+                            product.sectors.slice(0, 2).map(sectorId => {
+                              const sector = sectors.find(s => s.id === sectorId);
+                              return sector ? (
+                                <Badge key={sectorId} variant="outline" className="text-xs">
+                                  {sector.name}
+                                </Badge>
+                              ) : null;
+                            })
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Nenhum</span>
+                          )}
+                          {product.sectors && product.sectors.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{product.sectors.length - 2}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <span className={product.currentStock <= product.minStock ? "text-destructive font-semibold" : ""}>
                           {product.currentStock} {product.unit}
