@@ -492,10 +492,16 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
                             <p className="font-semibold text-primary">Resumo Consolidado</p>
                             <p className="text-sm text-muted-foreground">Soma de todos os setores e impacto global no estoque</p>
                           </div>
-                          <Button size="sm" onClick={() => exportConsolidatedPDF(inventory)} className="gap-2">
-                            <FileDown className="h-4 w-4" />
-                            Baixar Relatório Final (PDF)
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => exportConsolidatedPDF(inventory)} className="gap-2">
+                              <FileDown className="h-4 w-4" />
+                              PDF
+                            </Button>
+                            <Button size="sm" onClick={() => exportConsolidatedExcel(inventory)} className="gap-2 bg-green-600 hover:bg-green-700">
+                              <FileSpreadsheet className="h-4 w-4" />
+                              Excel
+                            </Button>
+                          </div>
                         </div>
                         <div className="border rounded-md overflow-hidden">
                           <Table>
