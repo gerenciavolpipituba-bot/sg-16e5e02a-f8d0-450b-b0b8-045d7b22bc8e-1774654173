@@ -7,11 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ClipboardList, Check, FileDown, Printer, Camera, FileText } from "lucide-react";
+import { Plus, ClipboardList, Check, FileDown, Printer, Camera, FileText, FileSpreadsheet } from "lucide-react";
 import { Product, Sector, Inventory, SectorCount } from "@/types";
 import { storage } from "@/lib/storage";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
 
 interface InventoryManagerProps {
   onDataChange: () => void;
@@ -252,6 +253,69 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     });
 
     doc.save(`consolidado-${inventory.name.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+  };
+
+  const exportConsolidatedExcel = (inventory: Inventory) => {
+    if (!inventory.consolidatedItems) return;
+
+    const excelData = inventory.consolidatedItems.map(item => {
+      const product = products.find(p => p.id === item.productId);
+      const row: any = {
+        "Código": product?.internalCode || "N/A",
+        "Produto": item.productName,
+        "Unidade": item.unit,
+      };
+
+      item.sectorBreakdown.forEach(sb => {
+        row[`${sb.sectorName} (Contado)`] = sb.physicalCount;
+      });
+
+      row["Total Contado"] = item.totalPhysicalCount;
+      row["Estoque Sistema"] = item.totalSystemStock;
+      row["Diferença"] = item.totalDifference;
+
+      return row;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    const headerRange = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (!worksheet[cellAddress]) continue;
+      worksheet[cellAddress].s = {
+        font: { bold: true },
+        fill: { fgColor: { rgb: "F1F5F9" } },
+        alignment: { horizontal: "center" }
+      };
+    }
+
+    const columnWidths = Object.keys(excelData[0] || {}).map(key => {
+      const maxLength = Math.max(
+        key.length,
+        ...excelData.map(row => String(row[key] || "").length)
+      );
+      return { wch: Math.min(maxLength + 2, 30) };
+    });
+    worksheet['!cols'] = columnWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Consolidado");
+
+    const summaryData = [
+      { "Informação": "Nome do Inventário", "Valor": inventory.name },
+      { "Informação": "Responsável", "Valor": inventory.createdBy },
+      { "Informação": "Data de Criação", "Valor": new Date(inventory.createdAt).toLocaleString("pt-BR") },
+      { "Informação": "Data de Finalização", "Valor": new Date(inventory.completedAt || "").toLocaleString("pt-BR") },
+      { "Informação": "Total de Produtos", "Valor": inventory.consolidatedItems.length.toString() },
+      { "Informação": "Setores Envolvidos", "Valor": inventory.sectorCounts.map(sc => sc.sectorName).join(", ") }
+    ];
+
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    summarySheet['!cols'] = [{ wch: 25 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Resumo");
+
+    XLSX.writeFile(workbook, `inventario-consolidado-${inventory.name.toLowerCase().replace(/\s+/g, '-')}.xlsx`);
   };
 
   if (!mounted) return null;
