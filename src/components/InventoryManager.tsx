@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ClipboardList, Check, FileDown, Printer, Camera, FileText, FileSpreadsheet } from "lucide-react";
+import { Plus, ClipboardList, Check, FileDown, Printer, Camera, FileText, FileSpreadsheet, Trash2 } from "lucide-react";
 import { Product, Sector, Inventory, SectorCount } from "@/types";
 import { storage } from "@/lib/storage";
 import jsPDF from "jspdf";
@@ -35,6 +35,17 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     setInventories(storage.getInventories().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
     setProducts(storage.getProducts().filter(p => p.status === "active"));
     setSectors(storage.getSectors());
+  };
+
+  const handleDeleteInventory = (inventoryId: string, inventoryName: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o inventário "${inventoryName}"?\n\nEsta ação não pode ser desfeita.`)) {
+      storage.deleteInventory(inventoryId);
+      if (selectedInventory?.id === inventoryId) {
+        setSelectedInventory(null);
+      }
+      loadData();
+      onDataChange();
+    }
   };
 
   const handleCreateInventory = (e: React.FormEvent<HTMLFormElement>) => {
@@ -385,6 +396,14 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
                     <Badge variant={inventory.status === "completed" ? "default" : "secondary"}>
                       {inventory.status === "completed" ? "Finalizado" : "Em andamento"}
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteInventory(inventory.id, inventory.name)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                     <Button
                       size="sm"
                       variant={selectedInventory?.id === inventory.id ? "secondary" : "default"}
