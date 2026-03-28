@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Search, Edit, Package, Tags } from "lucide-react";
+import { Plus, Search, Edit, Package, Tags, Trash2 } from "lucide-react";
 import { Product, Sector } from "@/types";
 import { storage } from "@/lib/storage";
 
@@ -38,6 +38,14 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
   const loadData = () => {
     setProducts(storage.getProducts());
     setSectors(storage.getSectors());
+  };
+
+  const handleDeleteProduct = (productId: string, productName: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o produto "${productName}"?\n\nEsta ação não pode ser desfeita e o produto será removido permanentemente do sistema.`)) {
+      storage.deleteProduct(productId);
+      loadData();
+      onDataChange();
+    }
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -521,9 +529,19 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(product)}>
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleDeleteProduct(product.id, product.name)}
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
