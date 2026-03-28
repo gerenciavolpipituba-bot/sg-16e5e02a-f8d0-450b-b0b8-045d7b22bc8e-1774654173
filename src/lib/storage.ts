@@ -107,6 +107,12 @@ export const storage = {
     }
   },
 
+  deleteProduct: (id: string): void => {
+    const products = storage.getProducts();
+    const filtered = products.filter(p => p.id !== id);
+    storage.saveProducts(filtered);
+  },
+
   // Atualizar produtos de uma categoria inteira para adicionar setores
   updateCategorySectors: (category: string, sectorIds: string[]): void => {
     ensureEstoqueGeral();
@@ -169,6 +175,12 @@ export const storage = {
       inventories[index] = { ...inventories[index], ...updates };
       storage.saveInventories(inventories);
     }
+  },
+
+  deleteInventory: (id: string): void => {
+    const inventories = storage.getInventories();
+    const filtered = inventories.filter(inv => inv.id !== id);
+    storage.saveInventories(filtered);
   },
 };
 
