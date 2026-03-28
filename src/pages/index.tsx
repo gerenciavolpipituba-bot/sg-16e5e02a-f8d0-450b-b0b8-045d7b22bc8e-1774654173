@@ -12,7 +12,9 @@ import {
   ClipboardList,
   MapPin,
   FileUp,
-  Trash2
+  Trash2,
+  LogOut,
+  User
 } from "lucide-react";
 import { Product, Movement } from "@/types";
 import { storage } from "@/lib/storage";
@@ -22,17 +24,33 @@ import { MovementsManager } from "@/components/MovementsManager";
 import { InventoryManager } from "@/components/InventoryManager";
 import { SectorsManager } from "@/components/SectorsManager";
 import { ImportManager } from "@/components/ImportManager";
+import { supabase } from "@/integrations/supabase/client";
+import { userService } from "@/services/userService";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<Movement[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
     loadData();
+    loadUserProfile();
   }, []);
+
+  const loadUserProfile = async () => {
+    const profile = await userService.getCurrentProfile();
+    setCurrentUser(profile);
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm("Tem certeza que deseja sair?")) {
+      await supabase.auth.signOut();
+      window.location.reload();
+    }
+  };
 
   const loadData = () => {
     setProducts(storage.getProducts());
@@ -69,12 +87,30 @@ export default function Home() {
                 <p className="text-sm text-muted-foreground">Sistema de Gestão Restaurante</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               {lowStockCount > 0 && (
                 <Badge variant="destructive" className="text-sm">
                   {lowStockCount} {lowStockCount === 1 ? "produto" : "produtos"} abaixo do mínimo
                 </Badge>
               )}
+              {currentUser && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <div className="text-sm">
+                    <p className="font-medium">{currentUser.full_name}</p>
+                    <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
+                  </div>
+                </div>
+              )}
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleLogout}
+                className="gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sair</span>
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
