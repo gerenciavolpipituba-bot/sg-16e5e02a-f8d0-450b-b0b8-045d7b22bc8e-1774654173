@@ -33,7 +33,7 @@ import { Dashboard } from "@/components/Dashboard";
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
-// Force deployment - Sistema Estoque Restaurante v1.1
+// Sistema de Controle de Estoque - Credenciais Atualizadas v1.2
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [products, setProducts] = useState<Product[]>([]);
