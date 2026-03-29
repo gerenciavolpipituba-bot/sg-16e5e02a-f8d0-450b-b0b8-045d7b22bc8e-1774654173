@@ -1,16 +1,23 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, ArrowDownCircle, ArrowUpCircle, Edit3 } from "lucide-react";
-import { Product, Sector, Movement } from "@/types";
-import { storage } from "@/lib/storage";
+import { productService } from "@/services/productService";
+import { sectorService } from "@/services/sectorService";
+import { movementService } from "@/services/movementService";
+import { userService } from "@/services/userService";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type Product = Database["public"]["Tables"]["products"]["Row"];
+type Sector = Database["public"]["Tables"]["sectors"]["Row"];
+type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
 interface MovementsManagerProps {
   onDataChange: () => void;
@@ -22,59 +29,93 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
     loadData();
+
+    const unsubscribe = movementService.subscribeToChanges(() => {
+      loadData();
+    });
+
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
-  const loadData = () => {
-    setMovements(storage.getMovements());
-    setProducts(storage.getProducts().filter(p => p.status === "active"));
-    setSectors(storage.getSectors());
+  const loadData = async () => {
+    try {
+      const [movementsData, productsData, sectorsData] = await Promise.all([
+        movementService.getAll(),
+        productService.getAll(),
+        sectorService.getAll()
+      ]);
+      setMovements(movementsData);
+      setProducts(productsData.filter(p => p.status === "active"));
+      setSectors(sectorsData);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar dados",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
     const productId = formData.get("productId") as string;
     const product = products.find(p => p.id === productId);
-    const sector = sectors.find(s => s.id === formData.get("sectorId") as string);
-    const type = formData.get("type") as Movement["type"];
+    const sectorId = formData.get("sectorId") as string;
+    const sector = sectors.find(s => s.id === sectorId);
+    const type = formData.get("type") as "entry" | "exit" | "adjustment";
     const quantity = Number(formData.get("quantity"));
+    const responsible = formData.get("responsible") as string;
+    const observation = formData.get("observation") as string || undefined;
 
     if (!product || !sector) return;
 
-    const movement: Movement = {
-      id: Date.now().toString(),
-      productId: product.id,
-      productName: product.name,
-      type,
-      quantity,
-      sectorId: sector.id,
-      sectorName: sector.name,
-      responsible: formData.get("responsible") as string,
-      observation: formData.get("observation") as string || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      let newStock = product.current_stock;
+      if (type === "entry") {
+        newStock += quantity;
+      } else if (type === "exit") {
+        newStock -= quantity;
+      } else {
+        newStock = quantity;
+      }
 
-    storage.addMovement(movement);
+      await movementService.create({
+        product_id: product.id,
+        type,
+        quantity,
+        sector_id: sector.id,
+        responsible,
+        observation
+      });
 
-    let newStock = product.currentStock;
-    if (type === "entry") {
-      newStock += quantity;
-    } else if (type === "exit") {
-      newStock -= quantity;
-    } else {
-      newStock = quantity;
+      await productService.update(product.id, { 
+        current_stock: Math.max(0, newStock) 
+      });
+
+      toast({
+        title: "Movimentação registrada",
+        description: `${getMovementLabel(type)} de ${quantity} ${product.unit} registrada com sucesso.`
+      });
+
+      setIsDialogOpen(false);
+      loadData();
+      onDataChange();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao registrar movimentação",
+        description: error.message,
+        variant: "destructive"
+      });
     }
-
-    storage.updateProduct(product.id, { currentStock: Math.max(0, newStock) });
-
-    setIsDialogOpen(false);
-    loadData();
-    onDataChange();
   };
 
   const getMovementIcon = (type: Movement["type"]) => {
@@ -99,6 +140,16 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
       case "exit": return "text-destructive";
       case "adjustment": return "text-info";
     }
+  };
+
+  const getProductName = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    return product?.name || "Produto não encontrado";
+  };
+
+  const getSectorName = (sectorId: string) => {
+    const sector = sectors.find(s => s.id === sectorId);
+    return sector?.name || "Setor não encontrado";
   };
 
   if (!mounted) return null;
@@ -144,7 +195,7 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
                   <SelectContent>
                     {products.map(product => (
                       <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.currentStock} {product.unit})
+                        {product.name} ({product.current_stock} {product.unit})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -222,7 +273,7 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{movement.productName}</p>
+                          <p className="font-medium">{getProductName(movement.product_id)}</p>
                           {movement.observation && (
                             <p className="text-xs text-muted-foreground">{movement.observation}</p>
                           )}
@@ -234,10 +285,10 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
                           {movement.quantity}
                         </span>
                       </TableCell>
-                      <TableCell>{movement.sectorName}</TableCell>
+                      <TableCell>{getSectorName(movement.sector_id)}</TableCell>
                       <TableCell>{movement.responsible}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {new Date(movement.createdAt).toLocaleString("pt-BR")}
+                        {new Date(movement.created_at).toLocaleString("pt-BR")}
                       </TableCell>
                     </TableRow>
                   ))

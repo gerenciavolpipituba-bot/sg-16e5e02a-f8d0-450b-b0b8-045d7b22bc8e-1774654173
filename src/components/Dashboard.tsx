@@ -1,7 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Package, TrendingDown, ArrowRightLeft, AlertTriangle } from "lucide-react";
-import { Product, Movement } from "@/types";
+import type { Database } from "@/integrations/supabase/types";
+
+type Product = Database["public"]["Tables"]["products"]["Row"];
+type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
 interface DashboardProps {
   products: Product[];
@@ -10,7 +13,7 @@ interface DashboardProps {
 
 export function Dashboard({ products, movements }: DashboardProps) {
   const activeProducts = products.filter(p => p.status === "active");
-  const lowStockProducts = activeProducts.filter(p => p.currentStock <= p.minStock);
+  const lowStockProducts = activeProducts.filter(p => p.current_stock <= p.min_stock);
   const recentMovements = movements.slice(0, 10);
 
   const getMovementColor = (type: Movement["type"]) => {
@@ -62,7 +65,7 @@ export function Dashboard({ products, movements }: DashboardProps) {
           <CardContent>
             <div className="text-2xl font-bold">{movements.filter(m => {
               const today = new Date().toDateString();
-              return new Date(m.createdAt).toDateString() === today;
+              return new Date(m.created_at).toDateString() === today;
             }).length}</div>
             <p className="text-xs text-muted-foreground">Registros de hoje</p>
           </CardContent>
@@ -87,10 +90,10 @@ export function Dashboard({ products, movements }: DashboardProps) {
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-destructive">
-                      {product.currentStock} {product.unit}
+                      {product.current_stock} {product.unit}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Mín: {product.minStock} {product.unit}
+                      Mín: {product.min_stock} {product.unit}
                     </p>
                   </div>
                 </div>
@@ -115,14 +118,14 @@ export function Dashboard({ products, movements }: DashboardProps) {
                 <div key={movement.id} className="flex items-start justify-between py-3 border-b last:border-0">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium">{movement.productName}</p>
+                      <p className="font-medium">Produto ID: {movement.product_id}</p>
                       <Badge variant="outline" className={getMovementColor(movement.type)}>
                         {getMovementLabel(movement.type)}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">{movement.sectorName}</p>
+                    <p className="text-sm text-muted-foreground">Setor ID: {movement.sector_id}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {movement.responsible} • {new Date(movement.createdAt).toLocaleString("pt-BR")}
+                      {movement.responsible} • {new Date(movement.created_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
                   <div className="text-right ml-4">

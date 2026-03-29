@@ -6,8 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { MapPin, Plus } from "lucide-react";
-import { Sector } from "@/types";
-import { storage } from "@/lib/storage";
+import { sectorService } from "@/services/sectorService";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type Sector = Database["public"]["Tables"]["sectors"]["Row"];
 
 interface SectorsManagerProps {
   onDataChange: () => void;
@@ -17,31 +20,51 @@ export function SectorsManager({ onDataChange }: SectorsManagerProps) {
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
     loadSectors();
   }, []);
 
-  const loadSectors = () => {
-    setSectors(storage.getSectors());
+  const loadSectors = async () => {
+    try {
+      const data = await sectorService.getAll();
+      setSectors(data);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar setores",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    const sector: Sector = {
-      id: Date.now().toString(),
-      name: formData.get("name") as string,
-      description: formData.get("description") as string || undefined,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      await sectorService.create({
+        name: formData.get("name") as string,
+        description: formData.get("description") as string || null
+      });
 
-    storage.addSector(sector);
-    setIsDialogOpen(false);
-    loadSectors();
-    onDataChange();
+      toast({
+        title: "Setor cadastrado",
+        description: "Setor criado com sucesso."
+      });
+
+      setIsDialogOpen(false);
+      loadSectors();
+      onDataChange();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao criar setor",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   if (!mounted) return null;
