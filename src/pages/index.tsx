@@ -16,7 +16,6 @@ import {
   LogOut,
   User
 } from "lucide-react";
-import { Dashboard } from "@/components/Dashboard";
 import { ProductsManager } from "@/components/ProductsManager";
 import { MovementsManager } from "@/components/MovementsManager";
 import { InventoryManager } from "@/components/InventoryManager";
@@ -29,11 +28,12 @@ import { movementService } from "@/services/movementService";
 import type { Database } from "@/integrations/supabase/types";
 import { SEO } from "@/components/SEO";
 import { AuthGuard } from "@/components/AuthGuard";
+import { Dashboard } from "@/components/Dashboard";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
-// Force new deployment - Sistema de Controle de Estoque v1.0
+// Force deployment - Sistema Estoque Restaurante v1.1
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [products, setProducts] = useState<Product[]>([]);
