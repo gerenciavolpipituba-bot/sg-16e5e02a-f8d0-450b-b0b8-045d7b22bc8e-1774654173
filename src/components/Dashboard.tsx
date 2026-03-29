@@ -118,14 +118,14 @@ export function Dashboard({ products, movements }: DashboardProps) {
                 <div key={movement.id} className="flex items-start justify-between py-3 border-b last:border-0">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="font-medium">Produto ID: {movement.product_id}</p>
+                      <p className="font-medium">{movement.product_name}</p>
                       <Badge variant="outline" className={getMovementColor(movement.type)}>
                         {getMovementLabel(movement.type)}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">Setor ID: {movement.sector_id}</p>
+                    <p className="text-sm text-muted-foreground">Setor ID: {movement.to_sector_id || movement.from_sector_id || "-"}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {movement.responsible} • {new Date(movement.created_at).toLocaleString("pt-BR")}
+                      {movement.created_by_name} • {new Date(movement.created_at).toLocaleString("pt-BR")}
                     </p>
                   </div>
                   <div className="text-right ml-4">

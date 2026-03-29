@@ -35,7 +35,7 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
     setMounted(true);
     loadData();
 
-    const unsubscribe = movementService.subscribeToChanges(() => {
+    const unsubscribe = movementService.subscribeToMovements(() => {
       loadData();
     });
 
@@ -90,11 +90,12 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
 
       await movementService.create({
         product_id: product.id,
+        product_name: product.name,
         type,
         quantity,
-        sector_id: sector.id,
-        responsible,
-        observation
+        to_sector_id: sector.id,
+        created_by_name: responsible,
+        notes: observation
       });
 
       await productService.update(product.id, { 
@@ -147,7 +148,8 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
     return product?.name || "Produto não encontrado";
   };
 
-  const getSectorName = (sectorId: string) => {
+  const getSectorName = (sectorId: string | null) => {
+    if (!sectorId) return "-";
     const sector = sectors.find(s => s.id === sectorId);
     return sector?.name || "Setor não encontrado";
   };
@@ -273,9 +275,9 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
                       </TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{getProductName(movement.product_id)}</p>
-                          {movement.observation && (
-                            <p className="text-xs text-muted-foreground">{movement.observation}</p>
+                          <p className="font-medium">{movement.product_name}</p>
+                          {movement.notes && (
+                            <p className="text-xs text-muted-foreground">{movement.notes}</p>
                           )}
                         </div>
                       </TableCell>
@@ -285,8 +287,8 @@ export function MovementsManager({ onDataChange }: MovementsManagerProps) {
                           {movement.quantity}
                         </span>
                       </TableCell>
-                      <TableCell>{getSectorName(movement.sector_id)}</TableCell>
-                      <TableCell>{movement.responsible}</TableCell>
+                      <TableCell>{getSectorName(movement.to_sector_id || movement.from_sector_id)}</TableCell>
+                      <TableCell>{movement.created_by_name}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {new Date(movement.created_at).toLocaleString("pt-BR")}
                       </TableCell>

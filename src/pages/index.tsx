@@ -16,8 +16,6 @@ import {
   LogOut,
   User
 } from "lucide-react";
-import { Product, Movement } from "@/types";
-import { storage } from "@/lib/storage";
 import { Dashboard } from "@/components/Dashboard";
 import { ProductsManager } from "@/components/ProductsManager";
 import { MovementsManager } from "@/components/MovementsManager";
@@ -26,6 +24,12 @@ import { SectorsManager } from "@/components/SectorsManager";
 import { ImportManager } from "@/components/ImportManager";
 import { supabase } from "@/integrations/supabase/client";
 import { userService } from "@/services/userService";
+import { productService } from "@/services/productService";
+import { movementService } from "@/services/movementService";
+import type { Database } from "@/integrations/supabase/types";
+
+type Product = Database["public"]["Tables"]["products"]["Row"];
+type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -52,9 +56,17 @@ export default function Home() {
     }
   };
 
-  const loadData = () => {
-    setProducts(storage.getProducts());
-    setMovements(storage.getMovements());
+  const loadData = async () => {
+    try {
+      const [productsData, movementsData] = await Promise.all([
+        productService.getAll(),
+        movementService.getAll()
+      ]);
+      setProducts(productsData);
+      setMovements(movementsData);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleDataChange = () => {
@@ -63,15 +75,13 @@ export default function Home() {
 
   const handleResetDatabase = () => {
     if (window.confirm("⚠️ ATENÇÃO: Isso irá apagar TODOS os dados (produtos, movimentações, inventários e setores). Deseja continuar?")) {
-      storage.resetAll();
-      loadData();
-      alert("✅ Banco de dados resetado com sucesso! Agora você pode importar seus dados novamente.");
+      alert("Operação temporariamente desabilitada no modo nuvem.");
     }
   };
 
   if (!mounted) return null;
 
-  const lowStockCount = products.filter(p => p.status === "active" && p.currentStock <= p.minStock).length;
+  const lowStockCount = products.filter(p => p.status === "active" && p.current_stock <= p.min_stock).length;
 
   return (
     <div className="min-h-screen bg-background">
