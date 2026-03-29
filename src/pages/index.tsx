@@ -27,10 +27,13 @@ import { userService } from "@/services/userService";
 import { productService } from "@/services/productService";
 import { movementService } from "@/services/movementService";
 import type { Database } from "@/integrations/supabase/types";
+import { SEO } from "@/components/SEO";
+import { AuthGuard } from "@/components/AuthGuard";
 
 type Product = Database["public"]["Tables"]["products"]["Row"];
 type Movement = Database["public"]["Tables"]["movements"]["Row"];
 
+// Force new deployment - Sistema de Controle de Estoque v1.0
 export default function Home() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [products, setProducts] = useState<Product[]>([]);
