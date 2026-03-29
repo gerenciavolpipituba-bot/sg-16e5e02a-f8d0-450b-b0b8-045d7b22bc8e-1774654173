@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Upload, Download, FileSpreadsheet, AlertCircle, CheckCircle2 } from "lucide-react";
-import { Product } from "@/types";
-import { storage } from "@/lib/storage";
+import { productService } from "@/services/productService";
+import type { Database } from "@/integrations/supabase/types";
 import * as XLSX from "xlsx";
+
+type Product = Database["public"]["Tables"]["products"]["Row"];
 
 interface ImportManagerProps {
   onDataChange: () => void;
@@ -68,7 +70,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
     XLSX.writeFile(wb, "template-importacao-produtos.xlsx");
   };
 
-  const processFileData = (data: any[]) => {
+  const processFileData = async (data: any[]) => {
     if (data.length === 0) {
       setResult({
         success: 0,
@@ -83,9 +85,10 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
     let updatedCount = 0;
     const errors: string[] = [];
 
-    const existingProducts = storage.getProducts();
+    const existingProducts = await productService.getAll();
 
-    data.forEach((row, index) => {
+    for (let index = 0; index < data.length; index++) {
+      const row = data[index];
       try {
         // Normalizar nomes de colunas
         const rowData: Record<string, any> = {};
@@ -103,7 +106,7 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
         // Validar campos obrigatórios
         if (!nome || !categoria || !unidade) {
           errors.push(`Linha ${index + 2}: Campos obrigatórios faltando (nome, categoria, unidade)`);
-          return;
+          continue;
         }
 
         // Normalizar unidade
@@ -122,39 +125,36 @@ export function ImportManager({ onDataChange }: ImportManagerProps) {
           finalUnit = "un";
         } else {
           errors.push(`Linha ${index + 2}: Unidade inválida "${unidade}". Use: kg, g, litro, ml ou un`);
-          return;
+          continue;
         }
 
         // Verificar se produto já existe
         const existingProduct = codigoInterno 
-          ? existingProducts.find(p => p.internalCode === String(codigoInterno).trim())
+          ? existingProducts.find(p => p.internal_code === String(codigoInterno).trim())
           : null;
 
-        const product: Product = {
-          id: existingProduct?.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        const productData = {
           name: String(nome).trim(),
           category: String(categoria).trim(),
           unit: finalUnit,
-          currentStock: parseFloat(rowData.estoque_atual || rowData.estoque || "0") || 0,
-          minStock: parseFloat(rowData.estoque_minimo || rowData.minimo || "0") || 0,
-          avgCost: parseFloat(rowData.custo_medio || rowData.custo || "0") || 0,
-          internalCode: codigoInterno ? String(codigoInterno).trim() : `AUTO${Date.now()}${index}`,
+          current_stock: parseFloat(rowData.estoque_atual || rowData.estoque || "0") || 0,
+          min_stock: parseFloat(rowData.estoque_minimo || rowData.minimo || "0") || 0,
+          avg_cost: parseFloat(rowData.custo_medio || rowData.custo || "0") || 0,
+          internal_code: codigoInterno ? String(codigoInterno).trim() : `AUTO${Date.now()}${index}`,
           status: (String(rowData.status || "active").toLowerCase() === "inactive" ? "inactive" : "active") as "active" | "inactive",
-          sectors: existingProduct?.sectors || ["estoque_geral_default"],
-          createdAt: existingProduct?.createdAt || new Date().toISOString(),
         };
 
         if (existingProduct) {
-          storage.updateProduct(existingProduct.id, product);
+          await productService.update(existingProduct.id, productData);
           updatedCount++;
         } else {
-          storage.addProduct(product);
+          await productService.create(productData);
           successCount++;
         }
       } catch (error) {
         errors.push(`Linha ${index + 2}: Erro ao processar dados - ${error instanceof Error ? error.message : "erro desconhecido"}`);
       }
-    });
+    }
 
     setResult({
       success: successCount,
