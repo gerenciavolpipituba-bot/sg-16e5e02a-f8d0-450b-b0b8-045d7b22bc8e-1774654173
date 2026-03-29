@@ -1,197 +1,142 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import { 
-  Package, 
-  TrendingDown, 
-  ArrowRightLeft, 
-  LayoutDashboard,
-  Plus,
-  ClipboardList,
-  MapPin,
-  FileUp,
-  Trash2,
-  LogOut,
-  User
-} from "lucide-react";
-import { ProductsManager } from "@/components/ProductsManager";
-import { MovementsManager } from "@/components/MovementsManager";
-import { InventoryManager } from "@/components/InventoryManager";
-import { SectorsManager } from "@/components/SectorsManager";
-import { ImportManager } from "@/components/ImportManager";
-import { supabase } from "@/integrations/supabase/client";
-import { userService } from "@/services/userService";
-import { productService } from "@/services/productService";
-import { movementService } from "@/services/movementService";
-import type { Database } from "@/integrations/supabase/types";
 import { SEO } from "@/components/SEO";
-import { AuthGuard } from "@/components/AuthGuard";
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Dashboard } from "@/components/Dashboard";
 
-type Product = Database["public"]["Tables"]["products"]["Row"];
-type Movement = Database["public"]["Tables"]["movements"]["Row"];
-
-// Sistema de Controle de Estoque - Credenciais Atualizadas v1.2
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("dashboard");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [movements, setMovements] = useState<Movement[]>([]);
-  const [mounted, setMounted] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    setMounted(true);
-    loadData();
-    loadUserProfile();
-  }, []);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  const loadUserProfile = async () => {
-    const profile = await userService.getCurrentProfile();
-    setCurrentUser(profile);
-  };
-
-  const handleLogout = async () => {
-    if (window.confirm("Tem certeza que deseja sair?")) {
-      await supabase.auth.signOut();
-      window.location.reload();
-    }
-  };
-
-  const loadData = async () => {
     try {
-      const [productsData, movementsData] = await Promise.all([
-        productService.getAll(),
-        movementService.getAll()
-      ]);
-      setProducts(productsData);
-      setMovements(movementsData);
-    } catch (e) {
-      console.error(e);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      if (data.user) {
+        setIsLoggedIn(true);
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao fazer login");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleDataChange = () => {
-    loadData();
-  };
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
-  const handleResetDatabase = () => {
-    if (window.confirm("⚠️ ATENÇÃO: Isso irá apagar TODOS os dados (produtos, movimentações, inventários e setores). Deseja continuar?")) {
-      alert("Operação temporariamente desabilitada no modo nuvem.");
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (error) throw error;
+      if (data.user) {
+        setIsLoggedIn(true);
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar conta");
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (!mounted) return null;
-
-  const lowStockCount = products.filter(p => p.status === "active" && p.current_stock <= p.min_stock).length;
+  if (isLoggedIn) {
+    return (
+      <>
+        <SEO
+          title="Sistema de Controle de Estoque"
+          description="Gerencie o estoque do seu restaurante de forma eficiente"
+        />
+        <Dashboard />
+      </>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <Package className="h-6 w-6 text-primary" />
+    <>
+      <SEO
+        title="Login - Sistema de Controle de Estoque"
+        description="Faça login para acessar o sistema"
+      />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">
+              Sistema de Estoque
+            </CardTitle>
+            <CardDescription className="text-center">
+              Entre com seu email e senha
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-              <div>
-                <h1 className="text-xl font-heading font-bold">Controle de Estoque</h1>
-                <p className="text-sm text-muted-foreground">Sistema de Gestão Restaurante</p>
+              <div className="space-y-2">
+                <Label htmlFor="password">Senha</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {lowStockCount > 0 && (
-                <Badge variant="destructive" className="text-sm">
-                  {lowStockCount} {lowStockCount === 1 ? "produto" : "produtos"} abaixo do mínimo
-                </Badge>
-              )}
-              {currentUser && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-lg">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <div className="text-sm">
-                    <p className="font-medium">{currentUser.full_name}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{currentUser.role}</p>
-                  </div>
+              {error && (
+                <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
+                  {error}
                 </div>
               )}
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleLogout}
-                className="gap-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span className="hidden sm:inline">Sair</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleResetDatabase}
-                className="gap-2"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Resetar DB</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="dashboard" className="gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              <span className="hidden sm:inline">Dashboard</span>
-            </TabsTrigger>
-            <TabsTrigger value="products" className="gap-2">
-              <Package className="h-4 w-4" />
-              <span className="hidden sm:inline">Produtos</span>
-            </TabsTrigger>
-            <TabsTrigger value="movements" className="gap-2">
-              <ArrowRightLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Movimentação</span>
-            </TabsTrigger>
-            <TabsTrigger value="inventory" className="gap-2">
-              <ClipboardList className="h-4 w-4" />
-              <span className="hidden sm:inline">Inventário</span>
-            </TabsTrigger>
-            <TabsTrigger value="sectors" className="gap-2">
-              <MapPin className="h-4 w-4" />
-              <span className="hidden sm:inline">Setores</span>
-            </TabsTrigger>
-            <TabsTrigger value="import" className="gap-2">
-              <FileUp className="h-4 w-4" />
-              <span className="hidden sm:inline">Importar</span>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="dashboard" className="space-y-6">
-            <Dashboard products={products} movements={movements} />
-          </TabsContent>
-
-          <TabsContent value="products" className="space-y-6">
-            <ProductsManager onDataChange={handleDataChange} />
-          </TabsContent>
-
-          <TabsContent value="movements" className="space-y-6">
-            <MovementsManager onDataChange={handleDataChange} />
-          </TabsContent>
-
-          <TabsContent value="inventory" className="space-y-6">
-            <InventoryManager onDataChange={handleDataChange} />
-          </TabsContent>
-
-          <TabsContent value="sectors" className="space-y-6">
-            <SectorsManager onDataChange={handleDataChange} />
-          </TabsContent>
-
-          <TabsContent value="import" className="space-y-6">
-            <ImportManager onDataChange={handleDataChange} />
-          </TabsContent>
-        </Tabs>
-      </main>
-    </div>
+              <div className="space-y-2">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading}
+                >
+                  {loading ? "Entrando..." : "Entrar"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleSignUp}
+                  disabled={loading}
+                >
+                  {loading ? "Criando..." : "Criar Conta"}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
