@@ -65,7 +65,7 @@ export default function Home() {
           title="Sistema de Controle de Estoque"
           description="Gerencie o estoque do seu restaurante de forma eficiente"
         />
-        <Dashboard />
+        <Dashboard products={[]} movements={[]} />
       </>
     );
   }
