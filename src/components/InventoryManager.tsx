@@ -70,7 +70,7 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     try {
       const [inventoriesData, countsData, productsData, sectorsData] = await Promise.all([
         inventoryService.getAll(),
-        inventoryService.getAllCounts(),
+        inventoryService.getCounts(),
         productService.getAll(),
         sectorService.getAll()
       ]);
@@ -135,7 +135,7 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     try {
       await inventoryService.create({
         name,
-        created_by_id: profile.id,
+        created_by: profile.id,
         created_by_name: profile.full_name,
         status: "in_progress"
       });
@@ -169,7 +169,7 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
         const product = products.find(p => p.id === productId);
         if (!product) return;
 
-        await inventoryService.createCount({
+        await inventoryService.saveCount({
           inventory_id: inventoryId,
           product_id: productId,
           sector_id: sectorId,
@@ -194,7 +194,7 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     }
 
     try {
-      await inventoryService.complete(inventoryId);
+      await inventoryService.update(inventoryId, { status: "completed" });
       
       toast({
         title: "Inventário finalizado",

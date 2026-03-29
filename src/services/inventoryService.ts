@@ -124,6 +124,48 @@ export const inventoryService = {
     return data || [];
   },
 
+  async getCountsByInventory(inventoryId: string) {
+    const { data, error } = await supabase
+      .from("inventory_counts")
+      .select("*")
+      .eq("inventory_id", inventoryId);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async getCounts() {
+    const { data, error } = await supabase
+      .from("inventory_counts")
+      .select("*");
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async saveCount(countData: Omit<Database["public"]["Tables"]["inventory_counts"]["Insert"], "id" | "created_at">) {
+    const { data, error } = await supabase
+      .from("inventory_counts")
+      .insert([countData])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  async updateCount(id: string, updates: Partial<Database["public"]["Tables"]["inventory_counts"]["Update"]>) {
+    const { data, error } = await supabase
+      .from("inventory_counts")
+      .update(updates)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   subscribeToInventories: (callback: (payload: any) => void) => {
     const channel = supabase
       .channel("inventories_changes")
