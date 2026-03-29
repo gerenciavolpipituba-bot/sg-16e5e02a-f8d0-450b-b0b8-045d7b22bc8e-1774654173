@@ -70,7 +70,7 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
     try {
       const [inventoriesData, countsData, productsData, sectorsData] = await Promise.all([
         inventoryService.getAll(),
-        inventoryService.getCounts(),
+        inventoryService.getAllCounts(),
         productService.getAll(),
         sectorService.getAll()
       ]);
@@ -167,14 +167,18 @@ export function InventoryManager({ onDataChange }: InventoryManagerProps) {
         await inventoryService.updateCount(existingCount.id, { physical_count: count });
       } else {
         const product = products.find(p => p.id === productId);
-        if (!product) return;
+        const sector = sectors.find(s => s.id === sectorId);
+        if (!product || !sector) return;
 
         await inventoryService.saveCount({
           inventory_id: inventoryId,
           product_id: productId,
           sector_id: sectorId,
           system_stock: product.current_stock,
-          physical_count: count
+          physical_count: count,
+          product_name: product.name,
+          sector_name: sector.name,
+          unit: product.unit
         });
       }
 

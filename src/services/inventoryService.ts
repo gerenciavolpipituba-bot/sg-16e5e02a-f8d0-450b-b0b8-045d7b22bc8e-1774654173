@@ -80,36 +80,20 @@ export const inventoryService = {
     if (error) throw error;
   },
 
-  addCount: async (count: InventoryCountInsert): Promise<InventoryCount> => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-
+  getAllCounts: async (): Promise<InventoryCount[]> => {
     const { data, error } = await supabase
       .from("inventory_counts")
-      .insert({
-        ...count,
-        counted_by: user.id
-      })
-      .select()
-      .single();
+      .select("*");
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error("Error fetching inventory counts:", error);
+      return [];
+    }
+
+    return data || [];
   },
 
-  updateCount: async (id: string, updates: Partial<InventoryCountInsert>): Promise<InventoryCount> => {
-    const { data, error } = await supabase
-      .from("inventory_counts")
-      .update(updates)
-      .eq("id", id)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  getCounts: async (inventoryId: string): Promise<InventoryCount[]> => {
+  getCountsByInventory: async (inventoryId: string): Promise<InventoryCount[]> => {
     const { data, error } = await supabase
       .from("inventory_counts")
       .select("*")
@@ -124,29 +108,16 @@ export const inventoryService = {
     return data || [];
   },
 
-  async getCountsByInventory(inventoryId: string) {
+  saveCount: async (countData: Omit<InventoryCountInsert, "id" | "created_at">): Promise<InventoryCount> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
     const { data, error } = await supabase
       .from("inventory_counts")
-      .select("*")
-      .eq("inventory_id", inventoryId);
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  async getCounts() {
-    const { data, error } = await supabase
-      .from("inventory_counts")
-      .select("*");
-
-    if (error) throw error;
-    return data || [];
-  },
-
-  async saveCount(countData: Omit<Database["public"]["Tables"]["inventory_counts"]["Insert"], "id" | "created_at">) {
-    const { data, error } = await supabase
-      .from("inventory_counts")
-      .insert([countData])
+      .insert({
+        ...countData,
+        counted_by: user.id
+      })
       .select()
       .single();
 
@@ -154,7 +125,7 @@ export const inventoryService = {
     return data;
   },
 
-  async updateCount(id: string, updates: Partial<Database["public"]["Tables"]["inventory_counts"]["Update"]>) {
+  updateCount: async (id: string, updates: Partial<InventoryCountInsert>): Promise<InventoryCount> => {
     const { data, error } = await supabase
       .from("inventory_counts")
       .update(updates)
