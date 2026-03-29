@@ -20,26 +20,44 @@ export function AuthGuard({ children }: AuthGuardProps) {
   const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    checkUser();
+    let isMounted = true;
+    
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (isMounted) {
+          setUser(session?.user ?? null);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error("Error checking session:", error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      setLoading(false);
+      if (isMounted) {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    const timeout = setTimeout(() => {
+      if (isMounted && loading) {
+        setLoading(false);
+      }
+    }, 5000);
 
-  const checkUser = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    } catch (error) {
-      console.error("Error checking user:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
