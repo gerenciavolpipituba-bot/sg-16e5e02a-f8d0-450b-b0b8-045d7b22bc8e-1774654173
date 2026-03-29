@@ -1,23 +1,15 @@
 {
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
   "framework": "nextjs",
-  "redirects": [
-    {
-      "source": "/old-path",
-      "destination": "/new-path",
-      "permanent": true
-    }
-  ],
-  "headers": [
+  "rewrites": [
     {
       "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        }
-      ]
+      "destination": "/"
     }
   ],
-  "cleanUrls": true,
-  "trailingSlash": false
+  "env": {
+    "NEXT_PUBLIC_SUPABASE_URL": "https://pmtmtdqmcrugexwjyodw.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtdG10ZHFtY3J1Z2V4d2p5b2R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MzMxNzMsImV4cCI6MjA5MDMwOTE3M30.GZcLqrEGfkaUQJHlUajQOjVq4_nG9AVtNiijlCOP3qo"
+  }
 }
