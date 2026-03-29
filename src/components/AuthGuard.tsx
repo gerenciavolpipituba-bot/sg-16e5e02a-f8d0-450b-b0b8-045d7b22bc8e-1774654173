@@ -6,258 +6,169 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, LogIn, UserPlus, Package } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
 
-interface AuthGuardProps {
-  children: React.ReactNode;
-}
-
-export function AuthGuard({ children }: AuthGuardProps) {
-  const [loading, setLoading] = useState(true);
+export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
-    
-    const initAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (isMounted) {
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("Error checking session:", error);
-        if (isMounted) {
-          setLoading(false);
-        }
+    // Timeout de segurança - se passar 3 segundos, para o loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log("Timeout atingido, parando loading");
+        setLoading(false);
       }
-    };
+    }, 3000);
 
-    initAuth();
+    checkUser();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (isMounted) {
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
+      setUser(session?.user ?? null);
+      setLoading(false);
     });
 
-    const timeout = setTimeout(() => {
-      if (isMounted && loading) {
-        setLoading(false);
-      }
-    }, 5000);
-
     return () => {
-      isMounted = false;
-      subscription.unsubscribe();
       clearTimeout(timeout);
+      subscription.unsubscribe();
     };
   }, []);
 
-  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
+  async function checkUser() {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
+    } catch (err) {
+      console.error("Erro ao verificar usuário:", err);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSignIn(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setSuccess("");
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    setIsSubmitting(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      setSuccess("Login realizado com sucesso!");
-    } catch (error: any) {
-      setError(error.message || "Erro ao fazer login");
+    } catch (err: any) {
+      setError(err.message || "Erro ao fazer login");
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }
 
-  const handleRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  async function handleSignUp(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    setSuccess("");
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const fullName = formData.get("fullName") as string;
-    const role = formData.get("role") as string;
+    setIsSubmitting(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-            role: role,
-          }
-        }
-      });
-
+      const { error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-
-      if (data.user) {
-        await supabase.from("profiles").upsert({
-          id: data.user.id,
-          email: email,
-          full_name: fullName,
-          role: role as any,
-        });
-
-        setSuccess("Conta criada com sucesso! Você já pode fazer login.");
-        setTimeout(() => {
-          const loginTab = document.querySelector('[value="login"]') as HTMLButtonElement;
-          loginTab?.click();
-        }, 2000);
-      }
-    } catch (error: any) {
-      setError(error.message || "Erro ao criar conta");
+      setError("Conta criada! Faça login.");
+    } catch (err: any) {
+      setError(err.message || "Erro ao criar conta");
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  }
 
+  // Tela de loading simplificada
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Carregando...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50">
+        <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
       </div>
     );
   }
 
+  // Se não está autenticado, mostra login
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="space-y-1 text-center">
-            <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-              <Package className="h-6 w-6 text-primary" />
-            </div>
-            <CardTitle className="text-2xl font-bold">Sistema de Controle de Estoque</CardTitle>
-            <CardDescription>
-              Faça login ou crie uma conta para acessar o sistema
-            </CardDescription>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-red-50 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Sistema de Estoque</CardTitle>
+            <CardDescription>Controle de estoque para restaurantes</CardDescription>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="login" className="w-full">
+            <Tabs defaultValue="signin" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="login">
-                  <LogIn className="h-4 w-4 mr-2" />
-                  Login
-                </TabsTrigger>
-                <TabsTrigger value="register">
-                  <UserPlus className="h-4 w-4 mr-2" />
-                  Registrar
-                </TabsTrigger>
+                <TabsTrigger value="signin">Login</TabsTrigger>
+                <TabsTrigger value="signup">Criar Conta</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="login" className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                {success && (
-                  <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
-                    <AlertDescription className="text-green-800 dark:text-green-200">{success}</AlertDescription>
-                  </Alert>
-                )}
-                <form onSubmit={handleLogin} className="space-y-4">
+              <TabsContent value="signin">
+                <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
+                    <Label htmlFor="email">Email</Label>
                     <Input
-                      id="login-email"
-                      name="email"
+                      id="email"
                       type="email"
-                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="login-password">Senha</Label>
+                    <Label htmlFor="password">Senha</Label>
                     <Input
-                      id="login-password"
-                      name="password"
+                      id="password"
                       type="password"
-                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full">
-                    Entrar
+                  {error && (
+                    <Alert variant={error.includes("criada") ? "default" : "destructive"}>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
                   </Button>
                 </form>
               </TabsContent>
 
-              <TabsContent value="register" className="space-y-4">
-                {error && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                  </Alert>
-                )}
-                {success && (
-                  <Alert className="bg-green-50 border-green-200 dark:bg-green-950 dark:border-green-800">
-                    <AlertDescription className="text-green-800 dark:text-green-200">{success}</AlertDescription>
-                  </Alert>
-                )}
-                <form onSubmit={handleRegister} className="space-y-4">
+              <TabsContent value="signup">
+                <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="register-name">Nome Completo</Label>
+                    <Label htmlFor="signup-email">Email</Label>
                     <Input
-                      id="register-name"
-                      name="fullName"
-                      type="text"
-                      placeholder="João Silva"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email</Label>
-                    <Input
-                      id="register-email"
-                      name="email"
+                      id="signup-email"
                       type="email"
-                      placeholder="seu@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="register-password">Senha</Label>
+                    <Label htmlFor="signup-password">Senha</Label>
                     <Input
-                      id="register-password"
-                      name="password"
+                      id="signup-password"
                       type="password"
-                      placeholder="••••••••"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
                       required
                       minLength={6}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-role">Função</Label>
-                    <Select name="role" defaultValue="stock_keeper" required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione sua função" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="manager">Gerente</SelectItem>
-                        <SelectItem value="stock_keeper">Estoquista</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full">
-                    Criar Conta
+                  {error && (
+                    <Alert variant={error.includes("criada") ? "default" : "destructive"}>
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
+                  <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Criar Conta"}
                   </Button>
                 </form>
               </TabsContent>
