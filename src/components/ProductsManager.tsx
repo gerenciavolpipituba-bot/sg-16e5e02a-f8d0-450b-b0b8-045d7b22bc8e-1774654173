@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,8 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Search, Edit, Package, Tags, Trash2 } from "lucide-react";
-import { Product, Sector } from "@/types";
-import { storage } from "@/lib/storage";
+import { productService } from "@/services/productService";
+import { sectorService } from "@/services/sectorService";
+import { useToast } from "@/hooks/use-toast";
+import type { Database } from "@/integrations/supabase/types";
+
+type Product = Database["public"]["Tables"]["products"]["Row"];
+type Sector = Database["public"]["Tables"]["sectors"]["Row"];
 
 interface ProductsManagerProps {
   onDataChange: () => void;
@@ -29,59 +34,103 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setMounted(true);
     loadData();
   }, []);
 
-  const loadData = () => {
-    setProducts(storage.getProducts());
-    setSectors(storage.getSectors());
-  };
-
-  const handleDeleteProduct = (productId: string, productName: string) => {
-    if (window.confirm(`Tem certeza que deseja excluir o produto "${productName}"?\n\nEsta ação não pode ser desfeita e o produto será removido permanentemente do sistema.`)) {
-      storage.deleteProduct(productId);
-      loadData();
-      onDataChange();
+  const loadData = async () => {
+    try {
+      const [productsData, sectorsData] = await Promise.all([
+        productService.getAll(),
+        sectorService.getAll()
+      ]);
+      setProducts(productsData);
+      setSectors(sectorsData);
+    } catch (error: any) {
+      toast({
+        title: "Erro ao carregar dados",
+        description: error.message,
+        variant: "destructive"
+      });
     }
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (window.confirm(`Tem certeza que deseja excluir o produto "${productName}"?\n\nEsta ação não pode ser desfeita e o produto será removido permanentemente do sistema.`)) {
+      try {
+        await productService.delete(productId);
+        toast({
+          title: "Produto excluído",
+          description: `${productName} foi removido com sucesso.`
+        });
+        loadData();
+        onDataChange();
+      } catch (error: any) {
+        toast({
+          title: "Erro ao excluir produto",
+          description: error.message,
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
-    const product: Product = {
-      id: editingProduct?.id || Date.now().toString(),
-      name: formData.get("name") as string,
-      category: formData.get("category") as string,
-      unit: formData.get("unit") as "kg" | "un" | "litro" | "ml" | "g",
-      currentStock: Number(formData.get("currentStock")),
-      minStock: Number(formData.get("minStock")),
-      avgCost: Number(formData.get("avgCost")),
-      internalCode: formData.get("internalCode") as string,
-      status: formData.get("status") as "active" | "inactive",
-      sectors: selectedSectors,
-      createdAt: editingProduct?.createdAt || new Date().toISOString(),
-    };
+    try {
+      const productData = {
+        name: formData.get("name") as string,
+        category: formData.get("category") as string,
+        unit: formData.get("unit") as "kg" | "un" | "litro" | "ml" | "g",
+        current_stock: Number(formData.get("currentStock")),
+        min_stock: Number(formData.get("minStock")),
+        avg_cost: Number(formData.get("avgCost")),
+        internal_code: formData.get("internalCode") as string,
+        status: formData.get("status") as "active" | "inactive"
+      };
 
-    if (editingProduct) {
-      storage.updateProduct(editingProduct.id, product);
-    } else {
-      storage.addProduct(product);
+      if (editingProduct) {
+        await productService.update(editingProduct.id, productData);
+        toast({
+          title: "Produto atualizado",
+          description: `${productData.name} foi atualizado com sucesso.`
+        });
+      } else {
+        const newProduct = await productService.create(productData);
+        await productService.linkSectors(newProduct.id, selectedSectors);
+        toast({
+          title: "Produto cadastrado",
+          description: `${productData.name} foi cadastrado com sucesso.`
+        });
+      }
+
+      if (editingProduct && selectedSectors.length > 0) {
+        await productService.linkSectors(editingProduct.id, selectedSectors);
+      }
+
+      setIsDialogOpen(false);
+      setEditingProduct(null);
+      setSelectedSectors([]);
+      loadData();
+      onDataChange();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar produto",
+        description: error.message,
+        variant: "destructive"
+      });
     }
-
-    setIsDialogOpen(false);
-    setEditingProduct(null);
-    setSelectedSectors([]);
-    loadData();
-    onDataChange();
   };
 
-  const handleEdit = (product: Product) => {
+  const handleEdit = async (product: Product) => {
     setEditingProduct(product);
-    setSelectedSectors(product.sectors || []);
+    const productSectors = await productService.getProductSectors(product.id);
+    setSelectedSectors(productSectors);
     setIsDialogOpen(true);
   };
 
@@ -118,47 +167,66 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
     }
   };
 
-  const handleCategoryBulkUpdate = () => {
+  const handleCategoryBulkUpdate = async () => {
     if (!selectedCategory) {
-      alert("Selecione uma categoria");
+      toast({
+        title: "Erro",
+        description: "Selecione uma categoria",
+        variant: "destructive"
+      });
       return;
     }
 
     if (selectedProducts.length === 0) {
-      alert("Selecione pelo menos um produto");
+      toast({
+        title: "Erro",
+        description: "Selecione pelo menos um produto",
+        variant: "destructive"
+      });
       return;
     }
 
     if (categorySectors.length === 0) {
-      alert("Selecione pelo menos um setor");
+      toast({
+        title: "Erro",
+        description: "Selecione pelo menos um setor",
+        variant: "destructive"
+      });
       return;
     }
 
-    // Atualizar apenas os produtos selecionados
-    selectedProducts.forEach(productId => {
-      const product = products.find(p => p.id === productId);
-      if (product) {
-        const currentSectors = product.sectors || [];
+    try {
+      for (const productId of selectedProducts) {
+        const currentSectors = await productService.getProductSectors(productId);
         const newSectors = Array.from(new Set([...currentSectors, ...categorySectors]));
-        storage.updateProduct(productId, { sectors: newSectors });
+        await productService.linkSectors(productId, newSectors);
       }
-    });
-    
-    setIsCategoryDialogOpen(false);
-    setSelectedCategory("");
-    setCategorySectors([]);
-    setSelectedProducts([]);
-    loadData();
-    onDataChange();
-    
-    alert(`${selectedProducts.length} produto(s) da categoria "${selectedCategory}" atualizado(s)! Os setores selecionados foram adicionados.`);
+      
+      setIsCategoryDialogOpen(false);
+      setSelectedCategory("");
+      setCategorySectors([]);
+      setSelectedProducts([]);
+      loadData();
+      onDataChange();
+      
+      toast({
+        title: "Sucesso",
+        description: `${selectedProducts.length} produto(s) da categoria "${selectedCategory}" atualizado(s)!`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar produtos",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
 
   const categories = Array.from(new Set(products.map(p => p.category))).filter(Boolean);
   
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.internalCode.toLowerCase().includes(searchTerm.toLowerCase());
+                         product.internal_code.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === "all" || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -253,7 +321,6 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                               <TableHead className="w-12"></TableHead>
                               <TableHead>Produto</TableHead>
                               <TableHead>Código</TableHead>
-                              <TableHead>Setores Atuais</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -266,28 +333,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                                   />
                                 </TableCell>
                                 <TableCell className="font-medium">{product.name}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{product.internalCode}</TableCell>
-                                <TableCell>
-                                  <div className="flex flex-wrap gap-1">
-                                    {product.sectors && product.sectors.length > 0 ? (
-                                      product.sectors.slice(0, 2).map(sectorId => {
-                                        const sector = sectors.find(s => s.id === sectorId);
-                                        return sector ? (
-                                          <Badge key={sectorId} variant="secondary" className="text-xs">
-                                            {sector.name}
-                                          </Badge>
-                                        ) : null;
-                                      })
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">Nenhum</span>
-                                    )}
-                                    {product.sectors && product.sectors.length > 2 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        +{product.sectors.length - 2}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground">{product.internal_code}</TableCell>
                               </TableRow>
                             ))}
                           </TableBody>
@@ -307,16 +353,12 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                               id={`cat-sector-${sector.id}`}
                               checked={categorySectors.includes(sector.id)}
                               onCheckedChange={() => handleCategorySectorToggle(sector.id)}
-                              disabled={sector.id === "estoque_geral_default"}
                             />
                             <Label
                               htmlFor={`cat-sector-${sector.id}`}
-                              className={`text-sm font-normal cursor-pointer ${sector.id === "estoque_geral_default" ? "font-semibold" : ""}`}
+                              className="text-sm font-normal cursor-pointer"
                             >
                               {sector.name}
-                              {sector.id === "estoque_geral_default" && (
-                                <Badge variant="secondary" className="ml-2 text-xs">Já vinculado</Badge>
-                              )}
                             </Label>
                           </div>
                         ))}
@@ -387,19 +429,19 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="internalCode">Código Interno *</Label>
-                    <Input id="internalCode" name="internalCode" defaultValue={editingProduct?.internalCode} required />
+                    <Input id="internalCode" name="internalCode" defaultValue={editingProduct?.internal_code} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="currentStock">Estoque Atual *</Label>
-                    <Input id="currentStock" name="currentStock" type="number" step="0.01" defaultValue={editingProduct?.currentStock} required />
+                    <Input id="currentStock" name="currentStock" type="number" step="0.01" defaultValue={editingProduct?.current_stock} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="minStock">Estoque Mínimo *</Label>
-                    <Input id="minStock" name="minStock" type="number" step="0.01" defaultValue={editingProduct?.minStock} required />
+                    <Input id="minStock" name="minStock" type="number" step="0.01" defaultValue={editingProduct?.min_stock} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="avgCost">Custo Médio (R$) *</Label>
-                    <Input id="avgCost" name="avgCost" type="number" step="0.01" defaultValue={editingProduct?.avgCost} required />
+                    <Input id="avgCost" name="avgCost" type="number" step="0.01" defaultValue={editingProduct?.avg_cost} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="status">Status *</Label>
@@ -417,9 +459,6 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
 
                 <div className="space-y-2">
                   <Label>Setores onde o produto está presente</Label>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    💡 O setor "Estoque Geral" é obrigatório e já vem marcado automaticamente
-                  </p>
                   <div className="border rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto">
                     {sectors.length === 0 ? (
                       <p className="text-sm text-muted-foreground">Nenhum setor cadastrado</p>
@@ -430,16 +469,12 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                             id={`sector-${sector.id}`}
                             checked={selectedSectors.includes(sector.id)}
                             onCheckedChange={() => handleSectorToggle(sector.id)}
-                            disabled={sector.id === "estoque_geral_default"}
                           />
                           <Label
                             htmlFor={`sector-${sector.id}`}
-                            className={`text-sm font-normal cursor-pointer ${sector.id === "estoque_geral_default" ? "font-semibold" : ""}`}
+                            className="text-sm font-normal cursor-pointer"
                           >
                             {sector.name}
-                            {sector.id === "estoque_geral_default" && (
-                              <Badge variant="secondary" className="ml-2 text-xs">Obrigatório</Badge>
-                            )}
                           </Label>
                         </div>
                       ))
@@ -469,7 +504,6 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                 <TableRow>
                   <TableHead>Produto</TableHead>
                   <TableHead>Categoria</TableHead>
-                  <TableHead>Setores</TableHead>
                   <TableHead className="text-right">Estoque</TableHead>
                   <TableHead className="text-right">Mínimo</TableHead>
                   <TableHead className="text-right">Custo</TableHead>
@@ -480,7 +514,7 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
               <TableBody>
                 {filteredProducts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
                       Nenhum produto encontrado
                     </TableCell>
@@ -491,38 +525,17 @@ export function ProductsManager({ onDataChange }: ProductsManagerProps) {
                       <TableCell>
                         <div>
                           <p className="font-medium">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.internalCode}</p>
+                          <p className="text-xs text-muted-foreground">{product.internal_code}</p>
                         </div>
                       </TableCell>
                       <TableCell>{product.category}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {product.sectors && product.sectors.length > 0 ? (
-                            product.sectors.slice(0, 2).map(sectorId => {
-                              const sector = sectors.find(s => s.id === sectorId);
-                              return sector ? (
-                                <Badge key={sectorId} variant="outline" className="text-xs">
-                                  {sector.name}
-                                </Badge>
-                              ) : null;
-                            })
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Nenhum</span>
-                          )}
-                          {product.sectors && product.sectors.length > 2 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{product.sectors.length - 2}
-                            </Badge>
-                          )}
-                        </div>
-                      </TableCell>
                       <TableCell className="text-right">
-                        <span className={product.currentStock <= product.minStock ? "text-destructive font-semibold" : ""}>
-                          {product.currentStock} {product.unit}
+                        <span className={product.current_stock <= product.min_stock ? "text-destructive font-semibold" : ""}>
+                          {product.current_stock} {product.unit}
                         </span>
                       </TableCell>
-                      <TableCell className="text-right">{product.minStock} {product.unit}</TableCell>
-                      <TableCell className="text-right">R$ {product.avgCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{product.min_stock} {product.unit}</TableCell>
+                      <TableCell className="text-right">R$ {product.avg_cost.toFixed(2)}</TableCell>
                       <TableCell>
                         <Badge variant={product.status === "active" ? "default" : "secondary"}>
                           {product.status === "active" ? "Ativo" : "Inativo"}
